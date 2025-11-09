@@ -1,148 +1,160 @@
-Bitcoin ECDSA Nonce-Delta Brute-Force — README
+# Bitcoin ECDSA Nonce-Delta Brute-Force
 
-Educational tool — do not use on third-party wallets or systems you don't own or have explicit permission to test.
+> Educational tool — **do not** use on third-party wallets or systems you don't own or have explicit permission to test.
 
-Small, self-contained Python script that demonstrates how correlated ECDSA nonces across two signatures can leak a private key. The script brute-forces a small integer delta between the two nonces (k2 = k1 - delta), reconstructs candidate nonces and private keys, and — if a match is found — prints the recovered private key together with its compressed public key and a Bech32 P2WPKH address.
+A small, self-contained Python script that demonstrates how correlated ECDSA nonces across two signatures can leak a private key.  
+The script brute-forces a small integer `delta` between two nonces (`k2 = k1 - delta`), reconstructs candidate nonces and private keys, and — if a match is found — prints the recovered private key together with its compressed public key and a Bech32 P2WPKH address.
 
-Quick summary
+---
 
-Attempts to recover an ECDSA private key d when two signatures were created with nonces k1 and k2 related by a small integer difference delta.
+## 🚀 Quick summary
 
-Iterates over a configurable integer range of delta values and tests algebraic solutions for k1, k2, d1, d2.
+- Attempts to recover an ECDSA private key `d` when two signatures were produced with nonces `k1` and `k2` that differ by a small integer `delta`.
+- Iterates over a configurable integer range of `delta` values and tests algebraic solutions for `k1`, `k2`, `d1`, and `d2`.
+- On success prints:
+  - recovered private key `d`
+  - compressed public key (hex)
+  - derived Bech32 (bc1...) P2WPKH address
 
-On success the script:
+> **For research and educational purposes only.** Use only on signatures/keys you control or for which you have written authorization.
 
-prints the recovered private key d
+---
 
-shows the compressed public key (hex)
+## ✅ Features
 
-prints a Bech32 (bc1...) P2WPKH-style address derived from the public key
+- Pure-Python demonstration of a nonce-correlation attack targeting secp256k1.
+- Uses `ecdsa` to derive public keys from recovered private keys.
+- Produces diagnostic logs while brute-forcing (configurable verbosity recommended).
+- Derives compressed pubkey and Bech32 address if private key recovery succeeds.
+- Easy to modify: add CLI flags, change delta bounds, add multiprocessing.
 
-For research and educational purposes only. Use only on signatures/keys you control or for which you have written authorization.
+---
 
-Features
+## 📁 File structure
 
-Pure-Python demonstration of the nonce-correlation attack on secp256k1.
-
-Uses ecdsa library to derive public keys from recovered private keys.
-
-Produces human-readable diagnostic logs during the brute-force loop (can be noisy).
-
-Derives compressed public key and Bech32 P2WPKH address after a successful recovery.
-
-File structure
-recover_key.py        # Main script (the code you provided)
+.
+├─ recover_key.py # Main script (the code)
+├─ README.md # This file
+└─ examples/ # (optional) put sample inputs/outputs here
 
 
-(You can split into modules later — e.g. crypto.py, scanner.py, cli.py — for readability and testing.)
+---
 
-How it works (high level)
+## 🧠 How it works (high level)
 
 ECDSA signature equation (mod n):
 
-s = k^{-1}(z + r * d) mod n
 
 
-where k is the per-signature nonce, d is the private key, r and s are signature components, z is the message hash, and n is the secp256k1 order.
+s = k^{-1} (z + r * d) (mod n)
 
-If two signatures (r1, s1, z1) and (r2, s2, z2) use nonces k1 and k2 that obey k2 = k1 - delta (for small integer delta), you can solve algebraically for k1 (and k2) and then for d.
 
-The script:
+Where:
+- `k` = per-signature nonce
+- `d` = private key
+- `(r, s)` = signature components
+- `z` = message hash
+- `n` = curve order (secp256k1)
 
-loops over candidate integer delta values,
+If two signatures `(r1, s1, z1)` and `(r2, s2, z2)` use nonces `k1` and `k2` such that:
 
-computes candidate k1 and k2 using modular arithmetic (including modular inverses),
 
-computes candidate private keys d1 and d2 from each signature,
 
-if d1 == d2, treats it as a successful recovery and prints results.
+k2 = k1 - delta
 
-Important implementation notes
 
-The script uses Python integers and sympy.mod_inverse for modular inverses and the ecdsa package to compute public keys.
+(for small integer `delta`) then algebraic manipulations allow solving for `k1` and therefore `d`. The script loops candidate `delta` values, computes candidate `k1/k2`, derives candidate private keys `d1/d2` and reports success when `d1 == d2`.
 
-The result logging prints a line for every tested delta — this will produce very large output if the range is large.
+---
 
-Many delta candidates will produce modular inverse errors or divide-by-zero conditions; the script catches and skips these.
+## ⚙️ Configuration
 
-The script assumes the particular algebraic relation k2 = k1 - delta. If the real relation differs (e.g. k2 = k1 + delta), the math must be adjusted.
+Open the script and set or modify these variables / parameters:
 
-Output format
+- `r1, s1, z1` and `r2, s2, z2` — signature values (hex → int)
+- `n` — secp256k1 order (already included)
+- `delta` search range — adjust the `range(...)` in `brute_force_d()` or add CLI args
+- Logging/verbosity — printing every iteration is expensive; consider logging only every N steps
 
-When a candidate is found the script prints something like:
+**Dependencies**
+- Python 3.8+
+- `ecdsa` — for public key derivation
+- `sympy` — `mod_inverse` (substitute if you prefer a faster function)
+- `bech32` — Bech32 encoding
 
-[INFO] Found private key! d = 123456789... (delta = 42)
-    k1 = ...
-    k2 = ...
-    d1 = ...
-    d2 = ...
+Install with:
+```bash
+pip install ecdsa sympy bech32
+
+📤 Output format
+
+When a candidate d is found the script prints:
+
+[INFO] Found private key! d = <decimal> (delta = <value>)
+    k1 = <value>
+    k2 = <value>
+    d1 = <value>
+    d2 = <value>
     Public (compressed) = 02abcdef...
     Bech32 address = bc1q...
 
 
-If no candidate is found in the tested range the script prints a final message indicating failure.
+If no key was found in the tested delta range, the script prints an ending message indicating failure.
 
-Dependencies
+🏁 How to run
 
-Python 3.8+
+Edit recover_key.py and paste your signatures (only for keys you control):
 
-ecdsa — key and public-key ops
+r1 = int('...hex...', 16)
+s1 = int('...hex...', 16)
+z1 = int('...hex...', 16)
 
-sympy — modular inverse (you may replace with a faster implementation)
-
-bech32 — Bech32 address encoding
-
-Install via pip:
-
-pip install ecdsa sympy bech32
-
-How to run
-
-Edit the script to include the two signatures you want to analyze:
-
-r1 = int('<hex>', 16)
-s1 = int('<hex>', 16)
-z1 = int('<hex>', 16)
-
-r2 = int('<hex>', 16)
-s2 = int('<hex>', 16)
-z2 = int('<hex>', 16)
+r2 = int('...hex...', 16)
+s2 = int('...hex...', 16)
+z2 = int('...hex...', 16)
 
 
-Configure the delta search range inside brute_force_d (or add CLI flags to set min/max):
+Configure delta search range (example uses ±10_000):
 
-for delta in range(-10000000, 10000001):
+for delta in range(-10000, 10001):
     ...
 
-
-Tip: start with a small range (e.g. ±10_000) and reduce or remove per-iteration logging for speed.
 
 Run:
 
 python recover_key.py
 
-Performance tips & improvements
 
-Reduce logging: printing each iteration is slow. Log only every N iterations or use a verbosity flag.
+Tips
 
-Use multiprocessing: split delta range across CPU cores.
+Start with a small range (±1,000 or ±10,000).
 
-Replace sympy.mod_inverse with a custom fast modular inverse (extended Euclidean) for speed.
+Disable per-iteration logging (or log every N iterations) to speed up the search.
 
-Add verification: once d is found, verify by deriving the public key and re-checking that (r1,s1) and (r2,s2) validate for z1, z2.
+If you want to run a large range, use multiprocessing to distribute the workload.
 
-Bounds pruning: add mathematical checks to skip impossible delta candidates early.
+⚡ Performance & improvements
 
-Safety, ethics & legality
+Remove or batch logs — printing is slow.
 
-This repository is educational. Do not use this script to attack, recover, or steal keys from third parties. Unauthorized recovery or use of private keys is illegal and unethical. Use only:
+Use a custom modular inverse (extended Euclidean) instead of sympy for speed.
 
-on keys/signatures you control,
+Add multiprocessing: split delta ranges by CPU core.
 
-as part of authorized security research with explicit written permission,
+Add a verification step: after recovering d, derive the public key and verify that both (r1,s1) and (r2,s2) validate for z1 and z2.
 
-or for learning in a safe, isolated environment.
+Add CLI (argparse) to configure delta bounds and verbosity.
 
-If you plan to use this for research, document permissions and follow local laws and ethical guidelines.
+🛡️ Ethics & legality
+
+This tool demonstrates known cryptographic weaknesses and must be used responsibly:
+
+Only run on keys and signatures you control.
+
+Do not attempt to recover keys from third-party wallets, exchanges, or other systems without explicit written permission.
+
+Unauthorized key recovery or use is illegal and unethical.
+
+If you intend to perform research on real systems, obtain documented authorization and follow applicable laws and institutional policies.
 
 BTC donation address: bc1q4nyq7kr4nwq6zw35pg0zl0k9jmdmtmadlfvqhr
